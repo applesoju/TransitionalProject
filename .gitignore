@@ -110,6 +110,8 @@ ENV/
 env.bak/
 venv.bak/
 
+.idea
+
 # Spyder project settings
 .spyderproject
 .spyproject
@@ -129,3 +131,4 @@ dmypy.json
 .pyre/
 
 notes.txt
+filtered_resources
