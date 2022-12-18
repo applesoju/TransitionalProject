@@ -4,6 +4,7 @@ import subprocess
 from datetime import datetime
 import gzip
 import io
+import pandas as pd
 
 import requests
 
@@ -11,6 +12,7 @@ from station import Station
 
 WEATHER_DATA_URL = 'https://www1.ncdc.noaa.gov/pub/data/noaa/isd-lite/'
 SAVE_DATA_DIR = 'C:\\Users\\patry\\Documents\\ProjPrzej\\filtered_resources\\data'
+SAVE_DAILY_STATION_LIST_DIR = 'C:\\Users\\patry\\Documents\\ProjPrzej\\filtered_resources'
 FILE_ROW_LENGHT = 62
 
 
@@ -108,11 +110,15 @@ def get_weather_data(stations_list, from_year, to_year):
         print(f'{datetime.now()}\n')
 
 
-def count_stations_with_daily_reports():
+def check_years_with_daily_reports(stations):
     days_in_months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
-    years = os.listdir(SAVE_DATA_DIR)
-    daily_rep_count = 0
+    years = os.listdir(SAVE_DATA_DIR)[:-1]
+
+    daily_rep_count = {}
+    for s in stations:
+        station_id = f'{s.usaf}-{s.wban}'
+        daily_rep_count[station_id] = []
 
     for y in years:
         year_path = f'{SAVE_DATA_DIR}\\{y}'
@@ -121,68 +127,55 @@ def count_stations_with_daily_reports():
         for f in file_list:
             file_path = f'{year_path}\\{f}'
 
-            with gzip.open(file_path, 'rb') as station_records:
-                months_in_records = []
-                days_in_records = []
+            column_names = ['y', 'm', 'd']
+            records_df = pd.read_csv(file_path,
+                                     sep=' ',
+                                     skipinitialspace=True,
+                                     names=column_names,
+                                     usecols=column_names)
 
-                with io.TextIOWrapper(station_records, encoding='utf-8') as decoder:
-                    content = decoder.read()
-                    n_rows = len(content) // FILE_ROW_LENGHT
+            month_count = len(records_df.m.unique())
+            if month_count != 12:
+                continue
 
-                    # make df and use unique() ?
+            day_lists = records_df.groupby('m').d.unique()
+            day_counts = [len(i) for i in day_lists]
 
-                    for row in range(n_rows):
-                        row_start_idx = FILE_ROW_LENGHT * row
+            dim = days_in_months.copy()
+            if int(y) % 4 == 0 and not int(y) % 100 == 0:
+                dim[1] += 1
 
-                        month = int(content[row_start_idx + 5: row_start_idx + 7])
-                        day = int(content[row_start_idx + 8:row_start_idx + 10])
+            elif int(y) % 400 == 0:
+                dim[1] += 1
 
-                        # Months counting
-                        if not months_in_records and month == 1:
-                            months_in_records.append(month)
-                            days_in_records = []
+            if day_counts != dim:
+                continue
 
-                        elif not months_in_records:
-                            break
+            station_id = f[:-8]
+            daily_rep_count[station_id].append(y)
 
-                        if month not in months_in_records and month - 1 == months_in_records[-1]:
-                            months_in_records.append(month)
-
-                        # Days counting
-                        if not days_in_records and day == 1:
-                            days_in_records.append(day)
-
-                        elif not days_in_records:
-                            break
-
-                        if day not in days_in_records and day - 1 == days_in_records[-1]:
-                            days_in_records.append(day)
-                        print(day)
-                        print(days_in_records)
-                    return
-                    # month = int(content[5:7])
-                    # day = int(content[8:10])
-                    # print(month)
-                    # If it's the first month then append it to the list
-                    # if month == 1:
-                    #     months_in_records.append(month)
-                    #
-                    # If the month is not in the list, and it's the next month then append it
-                    # if month not in months_in_records and months_in_records:
-                    #     if month - 1 == months_in_records[-1]:
-                    #         months_in_records.append(month)
-
-                    # print(months_in_records)
-                    # for m in range(0, 12):
-                    #     if month == m + 1 and month not in months_in_records:
-                    #         months_in_records.append(month)
-                    #
-                    #     n_days = days_in_months[m]
-                    #     if m == 1:
-                    #         if (int(y) % 4 == 0 and not int(y) % 100 == 0) or (int(y) % 400 == 0):
-                    #             n_days += 1
-                    #
-                    #     for d in n_days:
-            # return
+    return daily_rep_count
 
 
+def save_daily_station_list(stations_dict):
+    output_str = ''
+    year_range = [str(i) for i in range(2000, 2022)]
+    daily_rep_every_year_count = [0 for _ in year_range]
+
+    for station in stations_dict:
+        year_list = stations_dict[station]
+        output_str += f'{station}: ' + ', '.join(year_list) + '\n'
+
+        for i in range(0, 22):
+            if len(year_list) == i + 1 and year_list == year_range[:(i + 1)]:
+                daily_rep_every_year_count[i] += 1
+
+    output_str += '\n'
+    for i, count in enumerate(daily_rep_every_year_count):
+        output_str += f'Number of stations that have daily report every year until year {2000 + i}: {count}\n'
+
+    if not os.path.exists(SAVE_DAILY_STATION_LIST_DIR):
+        subprocess.call(['mkdir', SAVE_DAILY_STATION_LIST_DIR], shell=True)
+
+    with open(f'{SAVE_DAILY_STATION_LIST_DIR}\\daily_check.txt', 'w') as save_file:
+        save_file.write(output_str)
