@@ -15,4 +15,3 @@ if __name__ == '__main__':
     # filter.get_weather_data(stations, FROM_YEAR, TO_YEAR)
     
     daily_stations_count = filter.count_stations_with_daily_reports()
-    

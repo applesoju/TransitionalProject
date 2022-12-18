@@ -1,13 +1,17 @@
-import subprocess
-from station import Station
 import csv
-import requests
 import os
+import subprocess
 from datetime import datetime
+import gzip
+import io
 
+import requests
+
+from station import Station
 
 WEATHER_DATA_URL = 'https://www1.ncdc.noaa.gov/pub/data/noaa/isd-lite/'
 SAVE_DATA_DIR = 'C:\\Users\\patry\\Documents\\ProjPrzej\\filtered_resources\\data'
+FILE_ROW_LENGHT = 62
 
 
 # Gets a list of FIPS IDs from a '.txt' file
@@ -46,30 +50,30 @@ def get_stations_from_country_list(stations_csv_path, countries_filepath):
                 continue
 
             # Get all relevant station information and save it in a list
-            usaf, wban, station_name, country, lat, long =\
+            usaf, wban, station_name, country, lat, long = \
                 row[0], row[1], row[2], row[3], row[6], row[7]
             new_station = Station(usaf, wban, station_name, country, lat, long)
             stations_list.append(new_station)
-    
+
     return stations_list
 
 
 # Gets all weather data from specified year range and stations
 def get_weather_data(stations_list, from_year, to_year):
     year_range = range(from_year, to_year + 1)
-    
+
     # Create a directory for data storage if it doesn't exist
     if not os.path.exists(SAVE_DATA_DIR):
         subprocess.call(['mkdir', SAVE_DATA_DIR], shell=True)
-        
+
     # For every year from a given range
     for year in year_range:
         print(f'Started file donwloading for {year}')
-        
+
         dir_url = WEATHER_DATA_URL + f'/{year}'
         save_data_in = SAVE_DATA_DIR + f'\\{year}'
         station_count = 0
-        
+
         # Create a directory for a specific year if it doesn't exist
         if not os.path.exists(save_data_in):
             subprocess.call(['mkdir', save_data_in], shell=True)
@@ -77,38 +81,108 @@ def get_weather_data(stations_list, from_year, to_year):
         # For every station from the list
         for station in stations_list:
             station_count += 1
-            
+
             # Print a notice every 500 files
             if station_count % 500 == 0:
                 print(f'Checked {station_count} files.')
-            
+
             file_name = f'{station.usaf}-{station.wban}-{year}.gz'
             station_data_url = f'{dir_url}/{file_name}'
-            
+
             # If station data from this year already exists then skip this file
             #   unless it's the current year
             if os.path.exists(f'{save_data_in}\\{file_name}') and datetime.today().year != year:
                 continue
-            
+
             # Try to download the file
             response = requests.get(station_data_url)
             if response.status_code == 404:
                 continue
-            
+
             # If the file download is successful then save it
             with open(save_data_in + f'\\{file_name}', 'wb') as data_file:
                 data_file.write(response.content)
-        
+
         # Print a notice when the year is done
         print(f'Year {year} done.')
         print(f'{datetime.now()}\n')
 
 
-def filter_out_ow_stations():
-    raise NotImplementedError
-# def count_stations_with_daily_reports():
-#     years = os.listdir(SAVE_DATA_DIR)
-    
-#     for gz_list in 
-    
-#     return 0
+def count_stations_with_daily_reports():
+    days_in_months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
+    years = os.listdir(SAVE_DATA_DIR)
+    daily_rep_count = 0
+
+    for y in years:
+        year_path = f'{SAVE_DATA_DIR}\\{y}'
+        file_list = os.listdir(year_path)
+
+        for f in file_list:
+            file_path = f'{year_path}\\{f}'
+
+            with gzip.open(file_path, 'rb') as station_records:
+                months_in_records = []
+                days_in_records = []
+
+                with io.TextIOWrapper(station_records, encoding='utf-8') as decoder:
+                    content = decoder.read()
+                    n_rows = len(content) // FILE_ROW_LENGHT
+
+                    # make df and use unique() ?
+
+                    for row in range(n_rows):
+                        row_start_idx = FILE_ROW_LENGHT * row
+
+                        month = int(content[row_start_idx + 5: row_start_idx + 7])
+                        day = int(content[row_start_idx + 8:row_start_idx + 10])
+
+                        # Months counting
+                        if not months_in_records and month == 1:
+                            months_in_records.append(month)
+                            days_in_records = []
+
+                        elif not months_in_records:
+                            break
+
+                        if month not in months_in_records and month - 1 == months_in_records[-1]:
+                            months_in_records.append(month)
+
+                        # Days counting
+                        if not days_in_records and day == 1:
+                            days_in_records.append(day)
+
+                        elif not days_in_records:
+                            break
+
+                        if day not in days_in_records and day - 1 == days_in_records[-1]:
+                            days_in_records.append(day)
+                        print(day)
+                        print(days_in_records)
+                    return
+                    # month = int(content[5:7])
+                    # day = int(content[8:10])
+                    # print(month)
+                    # If it's the first month then append it to the list
+                    # if month == 1:
+                    #     months_in_records.append(month)
+                    #
+                    # If the month is not in the list, and it's the next month then append it
+                    # if month not in months_in_records and months_in_records:
+                    #     if month - 1 == months_in_records[-1]:
+                    #         months_in_records.append(month)
+
+                    # print(months_in_records)
+                    # for m in range(0, 12):
+                    #     if month == m + 1 and month not in months_in_records:
+                    #         months_in_records.append(month)
+                    #
+                    #     n_days = days_in_months[m]
+                    #     if m == 1:
+                    #         if (int(y) % 4 == 0 and not int(y) % 100 == 0) or (int(y) % 400 == 0):
+                    #             n_days += 1
+                    #
+                    #     for d in n_days:
+            # return
+
+
