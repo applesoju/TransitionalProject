@@ -28,6 +28,7 @@ if __name__ == '__main__':
 
     stat = stations[1]
     out = filter.get_dataframe(2000, stat, WEATHER_DF_COLUMN_NAMES)
+
     stat_name = f'{stat.usaf}-{stat.wban}'
     print(f'{stat_name}:\n{out}')
 

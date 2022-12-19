@@ -192,7 +192,8 @@ def get_dataframe(year, station, col_names):
                              skipinitialspace=True,
                              names=col_names)
 
-    return weather_df.loc[0]
+    # return weather_df.loc[0]      # for testing
+    return weather_df
 
 
 def get_stat_metrics(weather_dataframe):
