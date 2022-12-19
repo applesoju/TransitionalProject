@@ -179,3 +179,21 @@ def save_daily_station_list(stations_dict):
 
     with open(f'{SAVE_DAILY_STATION_LIST_DIR}\\daily_check.txt', 'w') as save_file:
         save_file.write(output_str)
+
+
+def get_dataframe(year, station, col_names):
+    file_path = f'{SAVE_DATA_DIR}\\{year}\\{station.usaf}-{station.wban}-{year}.gz'
+
+    if not os.path.exists(file_path):
+        return None
+
+    weather_df = pd.read_csv(file_path,
+                             sep=' ',
+                             skipinitialspace=True,
+                             names=col_names)
+
+    return weather_df.loc[0]
+
+
+def get_stat_metrics(weather_dataframe):
+    raise NotImplementedError
