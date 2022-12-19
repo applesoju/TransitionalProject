@@ -27,10 +27,13 @@ if __name__ == '__main__':
     # filter.save_daily_station_list(daily_stations_dict)
 
     stat = stations[1]
-    out = filter.get_dataframe(2000, stat, WEATHER_DF_COLUMN_NAMES)
+    wdf = filter.get_dataframe(2000, stat, WEATHER_DF_COLUMN_NAMES)
 
     stat_name = f'{stat.usaf}-{stat.wban}'
-    print(f'{stat_name}:\n{out}')
+    print(f'{stat_name}:\n{wdf}')
+
+    pwd = filter.process_weather_dataframe(wdf)
+    print(pwd)
 
     print("\nProgram finished.")
     print(f'{datetime.now()}\n')

@@ -196,5 +196,7 @@ def get_dataframe(year, station, col_names):
     return weather_df
 
 
-def get_stat_metrics(weather_dataframe):
-    raise NotImplementedError
+def process_weather_dataframe(weather_dataframe):
+    df_mean = weather_dataframe.groupby(['Year', 'Month', 'Day']).mean()
+    return df_mean
+
