@@ -5,6 +5,7 @@ from datetime import datetime
 import gzip
 import io
 import pandas as pd
+import numpy as np
 
 import requests
 
@@ -14,6 +15,16 @@ WEATHER_DATA_URL = 'https://www1.ncdc.noaa.gov/pub/data/noaa/isd-lite/'
 SAVE_DATA_DIR = 'C:\\Users\\patry\\Documents\\ProjPrzej\\filtered_resources\\data'
 SAVE_DAILY_STATION_LIST_DIR = 'C:\\Users\\patry\\Documents\\ProjPrzej\\filtered_resources'
 FILE_ROW_LENGHT = 62
+WEATHER_DF_COLUMN_NAMES = [
+    'Year', 'Month', 'Day', 'Hour',
+    'Air_Temperature', 'Dew_Point_Temperature',
+    'Sea_Level_Pressure', 'Wind_Direction', 'Wind_Speed_Rate',
+    'Sky_Condition_Total_Coverage_Code',
+    'Liquid_Precipitation_Depth_Dimension_1hr', 'Liquid_Precipitation_Depth_Dimension_6hrs'
+]
+WEATHER_STATS_COLUMN_NAMES = WEATHER_DF_COLUMN_NAMES[:3] +\
+                             WEATHER_DF_COLUMN_NAMES[4:7] +\
+                             WEATHER_DF_COLUMN_NAMES[-2:]
 
 
 # Gets a list of FIPS IDs from a '.txt' file
@@ -171,7 +182,7 @@ def save_daily_station_list(stations_dict):
                 daily_rep_every_year_count[i] += 1
 
     output_str += '\n'
-    for i, count in enumerate(daily_rep_every_year_count):
+    for i, count in enumeratte(daily_rep_every_year_count):
         output_str += f'Number of stations that have daily report every year until year {2000 + i}: {count}\n'
 
     if not os.path.exists(SAVE_DAILY_STATION_LIST_DIR):
@@ -181,7 +192,34 @@ def save_daily_station_list(stations_dict):
         save_file.write(output_str)
 
 
-def get_dataframe(year, station, col_names):
+def get_daily_station_list(to_year):
+    daily_stations_ids = []
+    wanted_year_sequence = [str(i) for i in range(2000, to_year + 1)]
+
+    daily_check_file_path = f'{SAVE_DAILY_STATION_LIST_DIR}\\daily_check.txt'
+    if not os.path.exists(daily_check_file_path):
+        print('No daily_check.txt file.')
+        raise FileExistsError
+
+    with open(daily_check_file_path, 'r') as dcf:
+        lines = dcf.readlines()
+
+        for line in lines:
+            if len(line) == 1:
+                break
+
+            stat_id, year_str = line.split(':')
+            year_list = [y.strip() for y in year_str.split(',')]
+
+            if year_list == wanted_year_sequence:
+                usaf, wban = stat_id.split('-')
+                daily_stations_ids.append((usaf, wban))
+
+    return daily_stations_ids
+
+
+def get_dataframe(year, station):
+    col_names = WEATHER_DF_COLUMN_NAMES
     file_path = f'{SAVE_DATA_DIR}\\{year}\\{station.usaf}-{station.wban}-{year}.gz'
 
     if not os.path.exists(file_path):
@@ -197,6 +235,43 @@ def get_dataframe(year, station, col_names):
 
 
 def process_weather_dataframe(weather_dataframe):
-    df_mean = weather_dataframe.groupby(['Year', 'Month', 'Day']).mean()
-    return df_mean
+    new_df = pd.DataFrame()
 
+    wdf_replaced = weather_dataframe.replace(-9999, np.NaN)
+    df_mean = wdf_replaced.groupby(WEATHER_STATS_COLUMN_NAMES[:3]).mean().reset_index()
+    df_med = wdf_replaced.groupby(WEATHER_STATS_COLUMN_NAMES[:3]).median().reset_index()
+    df_min = wdf_replaced.groupby(WEATHER_STATS_COLUMN_NAMES[:3]).min().reset_index()
+    df_max = wdf_replaced.groupby(WEATHER_STATS_COLUMN_NAMES[:3]).max().reset_index()
+
+    df_stats = [df_mean, df_med, df_min, df_max]
+    stat_names = ['_Mean', '_Median', '_Min', '_Max']
+
+    sample_df = df_mean
+
+    for ymd in WEATHER_STATS_COLUMN_NAMES[:3]:
+        new_df[ymd] = sample_df[ymd]
+
+    for col in WEATHER_STATS_COLUMN_NAMES[3:]:
+        for i, stat in enumerate(df_stats):
+            new_name = col + stat_names[i]
+            new_df[new_name] = stat[col]
+
+    return new_df
+
+
+def process_all_weather_dataframes(stations, y_start, y_stop):
+    all_data_df = pd.DataFrame()
+
+    for y in range(y_start, y_stop + 1):
+        for st in stations:
+            st_df = get_dataframe(y, st)
+            processed_df = process_weather_dataframe(st_df)
+            processed_df['Station'] = f'{st.usaf}-{st.wban}'
+
+            columns = list(processed_df.columns.values)
+            new_cols = columns[-1:] + columns[:-1]
+            processed_df = processed_df[new_cols]
+
+            all_data_df = pd.concat([all_data_df, processed_df])
+
+    return all_data_df
