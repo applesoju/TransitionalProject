@@ -32,6 +32,7 @@ if __name__ == '__main__':
 
     stat_list = filter.get_daily_station_list(2020)
     daily_stations = []
+
     for stat in stat_list:
         for st in stations:
             if st.usaf == stat[0] and st.wban == stat[1]:

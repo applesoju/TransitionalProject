@@ -254,7 +254,7 @@ def process_weather_dataframe(weather_dataframe):
     for col in WEATHER_STATS_COLUMN_NAMES[3:]:
         for i, stat in enumerate(df_stats):
             new_name = col + stat_names[i]
-            new_df[new_name] = stat[col]
+            new_df[new_name] = stat[col] / 10
 
     return new_df
 
@@ -273,5 +273,7 @@ def process_all_weather_dataframes(stations, y_start, y_stop):
             processed_df = processed_df[new_cols]
 
             all_data_df = pd.concat([all_data_df, processed_df])
+
+        print(f'Year {y} done.')
 
     return all_data_df
