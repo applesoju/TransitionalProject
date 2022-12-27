@@ -277,3 +277,7 @@ def process_all_weather_dataframes(stations, y_start, y_stop):
         print(f'Year {y} done.')
 
     return all_data_df
+
+
+def remove_unwanted_features_from_df(weather_df, unwanted_features):
+    return weather_df.drop(labels=unwanted_features, axis=1)
