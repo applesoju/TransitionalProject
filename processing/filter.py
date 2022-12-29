@@ -6,6 +6,8 @@ import gzip
 import io
 import pandas as pd
 import numpy as np
+from functools import partial
+from sklearn.feature_selection import SelectKBest, mutual_info_regression
 
 import requests
 
@@ -280,4 +282,21 @@ def process_all_weather_dataframes(stations, y_start, y_stop):
 
 
 def remove_unwanted_features_from_df(weather_df, unwanted_features):
-    return weather_df.drop(labels=unwanted_features, axis=1)
+    date_columns = ['Year', 'Month', 'Day']
+
+    weather_df['Date'] = weather_df[date_columns[0]].astype(str) + '-' +\
+        weather_df[date_columns[1]].astype(str) + '-' +\
+        weather_df[date_columns[2]].astype(str)
+
+    weather_df = weather_df.drop(labels=date_columns, axis=1)
+    weather_df = weather_df.drop(labels=unwanted_features, axis=1)
+
+    columns = list(weather_df.columns.values)
+    new_cols = columns[:1] + columns[-1:] + columns[1:-1]
+    weather_df = weather_df[new_cols]
+
+    return weather_df
+
+
+def plot_feature_scores():
+    raise NotImplementedError
