@@ -8,6 +8,7 @@ COUNTRIES_FILEPATH = 'C:\\Users\\patry\\Documents\\ProjPrzej\\filtered_resources
 FROM_YEAR = 2000
 TO_YEAR = 2020
 FINISHED_DF_FILEPATH = 'C:\\Users\\patry\\Documents\\ProjPrzej\\filtered_resources\\finished_df.csv'
+FEATURE_SCORES_DIR = 'C:\\Users\\patry\\Documents\\ProjPrzej\\figures'
 UNWANTED_COLUMNS = ['Liquid_Precipitation_Depth_Dimension_1hr_Mean',
                     'Liquid_Precipitation_Depth_Dimension_1hr_Median',
                     'Liquid_Precipitation_Depth_Dimension_1hr_Min',
@@ -52,9 +53,13 @@ if __name__ == '__main__':
     # finished_df = filter.process_all_weather_dataframes(daily_stations, 2000, 2020)
     # finished_df.to_csv(FINISHED_DF_FILEPATH, index=False)
     #
-    # df_to_clean_up = pd.read_csv(FINISHED_DF_FILEPATH)
+    # df_to_f
+    # clean_up = pd.read_csv(FINISHED_DF_FILEPATH)
     # clean_df = filter.remove_unwanted_features_from_df(df_to_clean_up, UNWANTED_COLUMNS)
-    # clean_df.to_csv(FINISHED_DF_FILEPATH)
+    # clean_df.to_csv(FINISHED_DF_FILEPATH, index=False)
+
+    fdf = pd.read_csv(FINISHED_DF_FILEPATH)
+    filter.plot_feature_scores(fdf, 'Air_Temperature_Mean', FEATURE_SCORES_DIR, True)
 
     print("\nProgram finished.")
     print(f'{datetime.now()}\n')

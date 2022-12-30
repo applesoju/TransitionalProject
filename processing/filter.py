@@ -2,14 +2,18 @@ import csv
 import os
 import subprocess
 from datetime import datetime
-import gzip
-import io
-import pandas as pd
-import numpy as np
-from functools import partial
-from sklearn.feature_selection import SelectKBest, mutual_info_regression
 
+import numpy as np
+import pandas as pd
 import requests
+from sklearn.feature_selection import SelectKBest, mutual_info_regression
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.impute import SimpleImputer
+import seaborn as sn
+import matplotlib.pyplot as plt
+
+from functools import partial
 
 from station import Station
 
@@ -24,8 +28,8 @@ WEATHER_DF_COLUMN_NAMES = [
     'Sky_Condition_Total_Coverage_Code',
     'Liquid_Precipitation_Depth_Dimension_1hr', 'Liquid_Precipitation_Depth_Dimension_6hrs'
 ]
-WEATHER_STATS_COLUMN_NAMES = WEATHER_DF_COLUMN_NAMES[:3] +\
-                             WEATHER_DF_COLUMN_NAMES[4:7] +\
+WEATHER_STATS_COLUMN_NAMES = WEATHER_DF_COLUMN_NAMES[:3] + \
+                             WEATHER_DF_COLUMN_NAMES[4:7] + \
                              WEATHER_DF_COLUMN_NAMES[-2:]
 
 
@@ -284,8 +288,8 @@ def process_all_weather_dataframes(stations, y_start, y_stop):
 def remove_unwanted_features_from_df(weather_df, unwanted_features):
     date_columns = ['Year', 'Month', 'Day']
 
-    weather_df['Date'] = weather_df[date_columns[0]].astype(str) + '-' +\
-        weather_df[date_columns[1]].astype(str) + '-' +\
+    weather_df['Date'] = weather_df[date_columns[0]].astype(str) + '-' + \
+        weather_df[date_columns[1]].astype(str) + '-' + \
         weather_df[date_columns[2]].astype(str)
 
     weather_df = weather_df.drop(labels=date_columns, axis=1)
@@ -298,5 +302,55 @@ def remove_unwanted_features_from_df(weather_df, unwanted_features):
     return weather_df
 
 
-def plot_feature_scores():
-    raise NotImplementedError
+def plot_feature_scores(feature_df, pred_val, dir_path, one_day_ahead=False):
+    cols = list(feature_df.columns.values)[1:]
+    y_imp = feature_df[pred_val]
+    x_imp = feature_df[cols[2:]]
+
+    if one_day_ahead:
+        y_imp = y_imp.drop(y_imp.iloc[[0]].index)
+        x_imp = x_imp.drop(x_imp.iloc[[-1]].index)
+
+    imp = SimpleImputer(missing_values=np.nan, strategy='mean')
+    imp.fit(x_imp, y_imp)
+    df = pd.DataFrame(imp.transform(x_imp),
+                      columns=cols[2:])
+
+    df['Station'] = feature_df['Station']
+    df['Date'] = feature_df['Date']
+
+    x = df[cols] if not one_day_ahead else df[cols].drop(df.iloc[[0]].index)
+    y = df[pred_val] if not one_day_ahead else df[pred_val].drop(df.iloc[[-1]].index)
+
+    oe = OrdinalEncoder()
+    x[['Station', 'Date']] = oe.fit_transform(x[['Station', 'Date']]).astype(int)
+
+    x_train, x_test, y_train, y_test = train_test_split(x,
+                                                        y,
+                                                        test_size=0.2,
+                                                        random_state=44)
+
+    score_function = partial(mutual_info_regression, discrete_features=[0, 1])
+    fs = SelectKBest(score_func=score_function, k='all')
+    # fs = SelectKBest(score_func=mutual_info_regression, k='all')
+    result = fs.fit(x_train, y_train)
+
+    for i in range(len(fs.scores_)):
+        print(f'Feature {result.feature_names_in_[i]} score: {result.scores_[i]}')
+
+    result_df = pd.DataFrame()
+    result_df['Feature_Name'] = result.feature_names_in_
+    result_df['Score'] = result.scores_
+
+    plt.figure(constrained_layout=True)
+    ax = sn.barplot(result_df, x='Score', y='Feature_Name', )
+    for i in ax.containers:
+        ax.bar_label(i,)
+
+    file_name = 'feature_scores' if not one_day_ahead else 'feature_score_oda'
+    if not os.path.exists(dir_path):
+        subprocess.call(['mkdir', dir_path], shell=True)
+
+    full_path = dir_path + '\\' + file_name
+    plt.savefig(full_path)
+    plt.close()
