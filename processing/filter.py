@@ -9,6 +9,7 @@ import requests
 from sklearn.feature_selection import SelectKBest, mutual_info_regression
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import LabelEncoder
 from sklearn.impute import SimpleImputer
 import seaborn as sn
 import matplotlib.pyplot as plt
@@ -302,7 +303,7 @@ def remove_unwanted_features_from_df(weather_df, unwanted_features):
     return weather_df
 
 
-def plot_feature_scores(feature_df, pred_val, dir_path, one_day_ahead=False):
+def get_feature_scores_plots(feature_df, pred_val, dir_path, one_day_ahead=False, n_features='all'):
     cols = list(feature_df.columns.values)[1:]
     y_imp = feature_df[pred_val]
     x_imp = feature_df[cols[2:]]
@@ -313,37 +314,34 @@ def plot_feature_scores(feature_df, pred_val, dir_path, one_day_ahead=False):
 
     imp = SimpleImputer(missing_values=np.nan, strategy='mean')
     imp.fit(x_imp, y_imp)
-    df = pd.DataFrame(imp.transform(x_imp),
-                      columns=cols[2:])
+    df = pd.DataFrame(imp.transform(x_imp), columns=cols[2:])
 
-    df['Station'] = feature_df['Station']
-    df['Date'] = feature_df['Date']
+    df['Date'] = feature_df['Date'].drop(feature_df.iloc[[-1]].index)
+    df['Station'] = feature_df['Station'].drop(feature_df.iloc[[-1]].index).astype('category')
+    df['Station_Cat'] = df['Station'].cat.codes
 
     x = df[cols] if not one_day_ahead else df[cols].drop(df.iloc[[0]].index)
     y = df[pred_val] if not one_day_ahead else df[pred_val].drop(df.iloc[[-1]].index)
 
     oe = OrdinalEncoder()
-    x[['Station', 'Date']] = oe.fit_transform(x[['Station', 'Date']]).astype(int)
+    x['Date'] = oe.fit_transform(x.loc[:, ['Date']]).astype(int)
 
-    x_train, x_test, y_train, y_test = train_test_split(x,
-                                                        y,
-                                                        test_size=0.2,
-                                                        random_state=44)
+    le = LabelEncoder()
+    x['Station'] = le.fit_transform(x['Station'])
 
     score_function = partial(mutual_info_regression, discrete_features=[0, 1])
-    fs = SelectKBest(score_func=score_function, k='all')
-    # fs = SelectKBest(score_func=mutual_info_regression, k='all')
-    result = fs.fit(x_train, y_train)
+    fs = SelectKBest(score_func=score_function, k=n_features)
+    fit_result = fs.fit(x, y)
 
     for i in range(len(fs.scores_)):
-        print(f'Feature {result.feature_names_in_[i]} score: {result.scores_[i]}')
+        print(f'Feature {fit_result.feature_names_in_[i]} score: {fit_result.scores_[i]}')
 
     result_df = pd.DataFrame()
-    result_df['Feature_Name'] = result.feature_names_in_
-    result_df['Score'] = result.scores_
+    result_df['Feature_Name'] = fit_result.feature_names_in_
+    result_df['Score'] = fit_result.scores_
 
     plt.figure(constrained_layout=True)
-    ax = sn.barplot(result_df, x='Score', y='Feature_Name', )
+    ax = sn.barplot(result_df, x='Score', y='Feature_Name')
     for i in ax.containers:
         ax.bar_label(i,)
 
@@ -354,3 +352,8 @@ def plot_feature_scores(feature_df, pred_val, dir_path, one_day_ahead=False):
     full_path = dir_path + '\\' + file_name
     plt.savefig(full_path)
     plt.close()
+
+    col_idxs = fs.get_support(indices=True)
+    best_features = [cols[i] for i in col_idxs]
+
+    return best_features
